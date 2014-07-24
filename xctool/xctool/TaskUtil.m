@@ -214,7 +214,8 @@ void LaunchTaskAndFeedOuputLinesToBlock(NSTask *task, NSString *description, voi
 
   LaunchTaskAndMaybeLogCommand(task, description);
 
-  uint8_t readBuffer[32768] = {0};
+  uint8_t readBuffer[32765] = {0};
+  NSMutableData *readBufferData = [NSMutableData dataWithCapacity:sizeof(readBuffer)];
   BOOL keepPolling = YES;
 
   while (keepPolling) {
@@ -224,12 +225,17 @@ void LaunchTaskAndFeedOuputLinesToBlock(NSTask *task, NSString *description, voi
     for (;;) {
       ssize_t bytesRead = read(stdoutReadFD, readBuffer, sizeof(readBuffer));
       if (bytesRead > 0) {
+        [readBufferData appendBytes:readBuffer length:bytesRead];
         @autoreleasepool {
-          NSString *str = [[NSString alloc] initWithBytes:readBuffer length:bytesRead encoding:NSUTF8StringEncoding];
-          [buffer appendString:str];
-          [str release];
-
-          processBuffer();
+          NSString *str = [[NSString alloc] initWithData:readBufferData encoding:NSUTF8StringEncoding];
+          if (str)
+          {
+            // Successful decode
+            [buffer appendString:str];
+            [str release];
+            processBuffer();
+            readBufferData.length = 0;
+          }
         }
       } else if ((bytesRead == 0) ||
                  (![task isRunning] && bytesRead == -1 && errno == EAGAIN)) {
